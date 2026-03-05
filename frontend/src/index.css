@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --bg-dark: #0f172a;
+  --card-dark: #1e293b;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+}
+
+body {
+  @apply bg-slate-900 text-slate-50 antialiased;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.glass {
+  @apply bg-slate-800/50 backdrop-blur-md border border-slate-700/50;
+}
+
+.btn-primary {
+  @apply px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all duration-200 font-medium shadow-lg shadow-indigo-500/20 active:scale-95;
+}
+
+.input-field {
+  @apply w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder:text-slate-500;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-slate-700 rounded-full;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-500;
+}
+
+/* Prose styles for TipTap editor */
+.ProseMirror {
+  @apply outline-none min-h-[300px] text-slate-800;
+}
+
+.ProseMirror p {
+  @apply mb-3;
+}
+
+.ProseMirror h1 {
+  @apply text-3xl font-bold mb-4 text-slate-900;
+}
+
+.ProseMirror h2 {
+  @apply text-2xl font-bold mb-3 text-slate-900;
+}
+
+.ProseMirror ul {
+  @apply list-disc pl-5 mb-3;
+}
+
+.ProseMirror ol {
+  @apply list-decimal pl-5 mb-3;
+}
+
+.ProseMirror li {
+  @apply mb-1;
+}
+
+.ProseMirror strong {
+  @apply font-bold;
+}
+
+.ProseMirror em {
+  @apply italic;
+}
+
+.ProseMirror blockquote {
+  @apply border-l-4 border-blue-400 pl-4 italic text-slate-600 my-3;
+}
+
+.ProseMirror code {
+  @apply bg-slate-100 px-1.5 py-0.5 rounded text-sm font-mono text-slate-800;
+}
