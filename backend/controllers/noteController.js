@@ -98,6 +98,8 @@ exports.updateNote = async (req, res) => {
     const noteFields = {};
     if (title) noteFields.title = title;
     if (content) noteFields.content = content;
+    noteFields.date = Date.now(); // Update the edit time
+
 
     try {
         let note = await Note.findById(req.params.id);

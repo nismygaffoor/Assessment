@@ -98,9 +98,6 @@ const Dashboard = () => {
             const res = await api.get('/notes?page=1&limit=50');
             const noteList = res.data.notes || res.data;
             setNotes(noteList);
-            if (!selectedNote && noteList.length > 0) {
-                setSelectedNote(noteList[0]);
-            }
         } catch (err) {
             console.error('Failed to fetch notes:', err.message);
         } finally {

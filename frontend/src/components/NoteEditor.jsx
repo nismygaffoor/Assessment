@@ -183,7 +183,7 @@ const InlineNoteEditor = ({ note, onSave, currentUser }) => {
                         {noteDate && (
                             <>
                                 <Clock size={12} />
-                                <span>Last edited {noteDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} by {currentUser?.name || 'You'}</span>
+                                <span>Last edited {noteDate.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} by {currentUser?.name || 'You'}</span>
                             </>
                         )}
                     </div>
