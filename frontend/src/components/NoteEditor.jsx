@@ -1,16 +1,33 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import { Save, Bold, Italic, List, ListOrdered, Heading1, Heading2, Code, Loader2, Clock, Wifi, WifiOff } from 'lucide-react';
+import { StarterKit } from '@tiptap/starter-kit';
+import { Underline } from '@tiptap/extension-underline';
+import { Highlight } from '@tiptap/extension-highlight';
+import { TextAlign } from '@tiptap/extension-text-align';
+import { TaskList } from '@tiptap/extension-task-list';
+import { TaskItem } from '@tiptap/extension-task-item';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { Link } from '@tiptap/extension-link';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
+import {
+    Save, Bold, Italic, List, ListOrdered, Heading1, Heading2, Code, Loader2, Clock, Wifi, WifiOff,
+    Underline as UnderlineIcon, Highlighter, AlignLeft, AlignCenter, AlignRight, AlignJustify,
+    CheckSquare, Quote, Minus, Type, Link as LinkIcon, Table as TableIcon, Palette,
+    Grid3X3, PlusSquare, Trash, CornerDownRight
+} from 'lucide-react';
 import api from '../api/axios';
 import { connectSocket, disconnectSocket, getSocket } from '../api/socket';
 
-const ToolbarButton = ({ onClick, isActive, title, children }) => (
+const ToolbarButton = ({ onClick, isActive, title, children, className = "" }) => (
     <button
         onMouseDown={(e) => { e.preventDefault(); onClick(); }}
         title={title}
         className={`p-1.5 rounded transition-all text-sm font-medium ${isActive ? 'bg-blue-100 text-blue-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-            }`}
+            } ${className}`}
     >
         {children}
     </button>
@@ -18,18 +35,94 @@ const ToolbarButton = ({ onClick, isActive, title, children }) => (
 
 const MenuBar = ({ editor }) => {
     if (!editor) return null;
+
+    const addLink = () => {
+        const previousUrl = editor.getAttributes('link').href;
+        const url = window.prompt('URL', previousUrl);
+
+        if (url === null) return;
+        if (url === '') {
+            editor.chain().focus().extendMarkRange('link').unsetLink().run();
+            return;
+        }
+        editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    };
+
     return (
         <div className="flex flex-wrap items-center gap-0.5 px-4 py-2 border-b border-slate-100 bg-white sticky top-0 z-10">
-            <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive('bold')} title="Bold"><Bold size={15} /></ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive('italic')} title="Italic"><Italic size={15} /></ToolbarButton>
+            {/* Text Style */}
+            <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive('bold')} title="Bold"><Bold size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive('italic')} title="Italic"><Italic size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} isActive={editor.isActive('underline')} title="Underline"><UnderlineIcon size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleStrike().run()} isActive={editor.isActive('strike')} title="Strike-through"><Type size={14} className="line-through" /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} isActive={editor.isActive('highlight')} title="Highlight"><Highlighter size={14} /></ToolbarButton>
+            <ToolbarButton onClick={addLink} isActive={editor.isActive('link')} title="Add Link"><LinkIcon size={14} /></ToolbarButton>
+
+            <div className="relative group flex items-center">
+                <ToolbarButton onClick={() => { }} title="Text Color" className="peer"><Palette size={14} /></ToolbarButton>
+                <div className="absolute top-full left-0 hidden group-hover:grid grid-cols-4 p-2 bg-white border border-slate-200 rounded-lg shadow-xl z-50 gap-1 mt-1">
+                    {['#000000', '#2563eb', '#16a34a', '#dc2626', '#d97706', '#7c3aed', '#db2777', '#475569'].map(color => (
+                        <button
+                            key={color}
+                            onClick={() => editor.chain().focus().setColor(color).run()}
+                            className="w-5 h-5 rounded-sm border border-slate-100"
+                            style={{ backgroundColor: color }}
+                        />
+                    ))}
+                    <button onClick={() => editor.chain().focus().unsetColor().run()} className="col-span-4 text-[10px] py-1 bg-slate-50 hover:bg-slate-100 rounded text-slate-500">Reset</button>
+                </div>
+            </div>
+
             <div className="w-px h-5 bg-slate-200 mx-1" />
-            <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive('bulletList')} title="Bullet List"><List size={15} /></ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} isActive={editor.isActive('orderedList')} title="Ordered List"><ListOrdered size={15} /></ToolbarButton>
+
+            {/* Alignment */}
+            <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} isActive={editor.isActive({ textAlign: 'left' })} title="Align Left"><AlignLeft size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('center').run()} isActive={editor.isActive({ textAlign: 'center' })} title="Align Center"><AlignCenter size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('right').run()} isActive={editor.isActive({ textAlign: 'right' })} title="Align Right"><AlignRight size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('justify').run()} isActive={editor.isActive({ textAlign: 'justify' })} title="Justify"><AlignJustify size={14} /></ToolbarButton>
+
             <div className="w-px h-5 bg-slate-200 mx-1" />
-            <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} isActive={editor.isActive('heading', { level: 1 })} title="Heading 1"><Heading1 size={15} /></ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} isActive={editor.isActive('heading', { level: 2 })} title="Heading 2"><Heading2 size={15} /></ToolbarButton>
+
+            {/* Lists */}
+            <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive('bulletList')} title="Bullet List"><List size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} isActive={editor.isActive('orderedList')} title="Ordered List"><ListOrdered size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleTaskList().run()} isActive={editor.isActive('taskList')} title="Task List"><CheckSquare size={14} /></ToolbarButton>
+
             <div className="w-px h-5 bg-slate-200 mx-1" />
-            <ToolbarButton onClick={() => editor.chain().focus().toggleCode().run()} isActive={editor.isActive('code')} title="Inline Code"><Code size={15} /></ToolbarButton>
+
+            {/* Tables */}
+            <div className="relative group flex items-center">
+                <ToolbarButton onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Insert Table">
+                    <TableIcon size={14} />
+                </ToolbarButton>
+                {editor.isActive('table') && (
+                    <div className="absolute top-full left-0 hidden group-hover:flex flex-col gap-0.5 p-2 bg-white border border-slate-200 rounded-lg shadow-xl z-50 mt-1 min-w-[140px]">
+                        <button onClick={() => editor.chain().focus().addColumnBefore().run()} className="text-left px-2 py-1.5 text-[10px] hover:bg-slate-50 flex items-center gap-2"><PlusSquare size={10} /> Add Column Before</button>
+                        <button onClick={() => editor.chain().focus().addColumnAfter().run()} className="text-left px-2 py-1.5 text-[10px] hover:bg-slate-50 flex items-center gap-2"><PlusSquare size={10} /> Add Column After</button>
+                        <button onClick={() => editor.chain().focus().deleteColumn().run()} className="text-left px-2 py-1.5 text-[10px] hover:bg-red-50 text-red-600 flex items-center gap-2"><Trash size={10} /> Delete Column</button>
+                        <div className="h-px bg-slate-100 my-1" />
+                        <button onClick={() => editor.chain().focus().addRowBefore().run()} className="text-left px-2 py-1.5 text-[10px] hover:bg-slate-50 flex items-center gap-2"><CornerDownRight size={10} /> Add Row Before</button>
+                        <button onClick={() => editor.chain().focus().addRowAfter().run()} className="text-left px-2 py-1.5 text-[10px] hover:bg-slate-50 flex items-center gap-2"><CornerDownRight size={10} /> Add Row After</button>
+                        <button onClick={() => editor.chain().focus().deleteRow().run()} className="text-left px-2 py-1.5 text-[10px] hover:bg-red-50 text-red-600 flex items-center gap-2"><Trash size={10} /> Delete Row</button>
+                        <div className="h-px bg-slate-100 my-1" />
+                        <button onClick={() => editor.chain().focus().deleteTable().run()} className="text-left px-2 py-1.5 text-[10px] hover:bg-red-600 hover:text-white text-red-600 flex items-center gap-2 font-bold"><Trash size={10} /> DELETE TABLE</button>
+                    </div>
+                )}
+            </div>
+
+            <div className="w-px h-5 bg-slate-200 mx-1" />
+
+            {/* Structure */}
+            <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} isActive={editor.isActive('heading', { level: 1 })} title="Heading 1"><Heading1 size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} isActive={editor.isActive('heading', { level: 2 })} title="Heading 2"><Heading2 size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleBlockquote().run()} isActive={editor.isActive('blockquote')} title="Blockquote"><Quote size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Horizontal Rule"><Minus size={14} /></ToolbarButton>
+
+            <div className="w-px h-5 bg-slate-200 mx-1" />
+
+            {/* Code */}
+            <ToolbarButton onClick={() => editor.chain().focus().toggleCode().run()} isActive={editor.isActive('code')} title="Inline Code"><Code size={14} /></ToolbarButton>
+            <ToolbarButton onClick={() => editor.chain().focus().toggleCodeBlock().run()} isActive={editor.isActive('codeBlock')} title="Code Block"><div className="flex flex-col items-center leading-none"><Code size={10} /><Code size={10} className="-mt-1.5" /></div></ToolbarButton>
         </div>
     );
 };
@@ -44,10 +137,36 @@ const InlineNoteEditor = ({ note, onSave, currentUser }) => {
     const currentNoteId = useRef(null);
 
     const editor = useEditor({
-        extensions: [StarterKit],
+        extensions: [
+            StarterKit,
+            Underline,
+            Highlight.configure({ multicolor: true }),
+            TextAlign.configure({
+                types: ['heading', 'paragraph'],
+                alignments: ['left', 'center', 'right', 'justify'],
+            }),
+            TaskList,
+            TaskItem.configure({
+                nested: true,
+            }),
+            Table.configure({
+                resizable: true,
+            }),
+            TableRow,
+            TableHeader,
+            TableCell,
+            Link.configure({
+                openOnClick: false,
+                HTMLAttributes: {
+                    class: 'text-blue-600 underline cursor-pointer hover:text-blue-800 transition-colors',
+                },
+            }),
+            TextStyle,
+            Color,
+        ],
         content: '',
         editorProps: {
-            attributes: { class: 'outline-none min-h-[300px] p-6 text-slate-800 text-sm leading-relaxed' },
+            attributes: { class: 'outline-none min-h-[400px] p-8 text-slate-800 text-sm leading-relaxed prose prose-slate max-w-none' },
         },
         onUpdate: ({ editor }) => {
             if (isRemoteUpdate.current) return;
