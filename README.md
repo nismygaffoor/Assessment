@@ -60,9 +60,7 @@ Create a `.env` file from the template:
 ```bash
 cp .env.example .env
 ```
-**Environment Variables:**
-- `VITE_API_URL`: `http://localhost:5000/api`
-- `VITE_SOCKET_URL`: `http://localhost:5000`
+
 
 Start the development app:
 ```bash
