@@ -260,7 +260,7 @@ const InlineNoteEditor = ({ note, onSave, currentUser }) => {
                 const res = await api.post('/notes', { title, content });
                 onSave?.(res.data);
             }
-            setTimeout(() => setSaveStatus('idle'), 3000);
+            setSaveStatus('saved');
         } catch (err) {
             console.error('Save error:', err.response?.data || err.message);
             setSaveStatus('error');
@@ -289,6 +289,7 @@ const InlineNoteEditor = ({ note, onSave, currentUser }) => {
     }
 
     const noteDate = note?.date ? new Date(note.date) : null;
+    const isShared = (note?.owner && note?.owner !== currentUser?.id && note?.owner !== currentUser?._id) || (note?.collaborators?.length > 0);
 
     return (
         <div className="flex-1 flex flex-col bg-white overflow-hidden">
@@ -342,14 +343,22 @@ const InlineNoteEditor = ({ note, onSave, currentUser }) => {
                         {saveStatus === 'idle' && (isConnected ? 'Connected' : 'Offline')}
                     </span>
                 </div>
-                <button
-                    onClick={() => handleSave(false)}
-                    disabled={saveStatus === 'saving'}
-                    className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-60 active:scale-95"
-                >
-                    {saveStatus === 'saving' ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                    Save
-                </button>
+                {saveStatus === 'saving' && (
+                    <div className="flex items-center gap-2 text-xs text-blue-600 font-medium">
+                        <Loader2 size={12} className="animate-spin" />
+                        Background Saving...
+                    </div>
+                )}
+                {!isShared && (
+                    <button
+                        onClick={() => handleSave(false)}
+                        disabled={saveStatus === 'saving'}
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-60 active:scale-95"
+                    >
+                        {saveStatus === 'saving' ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                        Save
+                    </button>
+                )}
             </div>
         </div>
     );
