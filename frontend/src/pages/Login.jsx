@@ -38,7 +38,7 @@ const Login = () => {
 
             <div className="flex-1 flex flex-col md:flex-row-reverse shadow-2xl overflow-hidden m-0 md:m-0  border border-slate-100">
                 {/* Left Side: Illustration / Welcome */}
-                <div className="hidden md:flex flex-1 bg-[#0f172a] p-16 flex-col justify-center relative overflow-hidden group">
+                <div className="hidden md:flex flex-1 bg-[#0f172a] p-16 flex-col items-center justify-center text-center relative overflow-hidden group">
                     {/* Abstract background shapes */}
                     <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/20 transition-all duration-700" />
                     <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all duration-700" />
@@ -47,7 +47,7 @@ const Login = () => {
                         <h2 className="text-5xl font-bold text-white mb-6 leading-tight">
                             Welcome Back.
                         </h2>
-                        <p className="text-slate-400 text-xl max-w-sm leading-relaxed">
+                        <p className="text-slate-400 text-xl max-w-sm mx-auto leading-relaxed">
                             Access your personal knowledge base and collaborate with your team with ease.
                         </p>
                     </div>
