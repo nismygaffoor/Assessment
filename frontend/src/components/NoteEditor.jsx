@@ -135,6 +135,15 @@ const InlineNoteEditor = ({ note, onSave, currentUser }) => {
     const autoSaveTimer = useRef(null);
     const isRemoteUpdate = useRef(false);
     const currentNoteId = useRef(null);
+    const isSharedRef = useRef(false);
+
+    // Calculate isShared early to use in callbacks
+    const isShared = (note?.owner && note?.owner !== currentUser?.id && note?.owner !== currentUser?._id) || (note?.collaborators?.length > 0);
+
+    // Keep ref in sync
+    useEffect(() => {
+        isSharedRef.current = isShared;
+    }, [isShared]);
 
     const editor = useEditor({
         extensions: [
@@ -180,9 +189,11 @@ const InlineNoteEditor = ({ note, onSave, currentUser }) => {
                     title,
                 });
             }
-            // Auto-save
-            clearTimeout(autoSaveTimer.current);
-            autoSaveTimer.current = setTimeout(() => handleSave(true), 2000);
+            // Auto-save only for shared notes
+            if (isSharedRef.current) {
+                clearTimeout(autoSaveTimer.current);
+                autoSaveTimer.current = setTimeout(() => handleSave(true), 2000);
+            }
         },
     });
 
@@ -275,8 +286,12 @@ const InlineNoteEditor = ({ note, onSave, currentUser }) => {
         if (socket.connected && currentNoteId.current) {
             socket.emit('note-change', { noteId: currentNoteId.current, title: e.target.value });
         }
-        clearTimeout(autoSaveTimer.current);
-        autoSaveTimer.current = setTimeout(() => handleSave(true), 2000);
+
+        // Auto-save title only for shared notes
+        if (isShared) {
+            clearTimeout(autoSaveTimer.current);
+            autoSaveTimer.current = setTimeout(() => handleSave(true), 2000);
+        }
     };
 
     if (!note) {
@@ -289,7 +304,6 @@ const InlineNoteEditor = ({ note, onSave, currentUser }) => {
     }
 
     const noteDate = note?.date ? new Date(note.date) : null;
-    const isShared = (note?.owner && note?.owner !== currentUser?.id && note?.owner !== currentUser?._id) || (note?.collaborators?.length > 0);
 
     return (
         <div className="flex-1 flex flex-col bg-white overflow-hidden">
