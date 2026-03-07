@@ -3,8 +3,6 @@ const User = require('../models/User');
 const { validationResult } = require('express-validator');
 
 // @route    POST api/notes
-// @desc     Create a note
-// @access   Private
 exports.createNote = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -29,8 +27,7 @@ exports.createNote = async (req, res) => {
 };
 
 // @route    GET api/notes
-// @desc     Get all notes for a user (including collaborative ones) with pagination
-// @access   Private
+
 exports.getNotes = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -45,6 +42,9 @@ exports.getNotes = async (req, res) => {
         };
 
         const notes = await Note.find(query)
+            .populate('collaborators', 'name email')
+            .populate('user', 'name email')
+            .populate('history.updatedBy', 'name email')
             .sort({ date: -1 })
             .skip(skip)
             .limit(limit);
@@ -64,11 +64,12 @@ exports.getNotes = async (req, res) => {
 };
 
 // @route    GET api/notes/:id
-// @desc     Get note by ID
-// @access   Private
 exports.getNoteById = async (req, res) => {
     try {
-        const note = await Note.findById(req.params.id);
+        const note = await Note.findById(req.params.id)
+            .populate('collaborators', 'name email')
+            .populate('user', 'name email')
+            .populate('history.updatedBy', 'name email');
 
         if (!note) {
             return res.status(404).json({ msg: 'Note not found' });
@@ -90,8 +91,6 @@ exports.getNoteById = async (req, res) => {
 };
 
 // @route    PUT api/notes/:id
-// @desc     Update a note
-// @access   Private
 exports.updateNote = async (req, res) => {
     const { title, content } = req.body;
 
@@ -99,7 +98,6 @@ exports.updateNote = async (req, res) => {
     if (title) noteFields.title = title;
     if (content) noteFields.content = content;
     noteFields.date = Date.now(); // Update the edit time
-
 
     try {
         let note = await Note.findById(req.params.id);
@@ -111,11 +109,30 @@ exports.updateNote = async (req, res) => {
             return res.status(401).json({ msg: 'User not authorized' });
         }
 
+        const updateOp = { $set: noteFields };
+
+        // Determine if we should push to history
+        if (content && content !== note.content) {
+            const lastHistory = note.history?.[note.history.length - 1];
+            // Only push to history if 10 seconds have passed since the last snapshot OR if a new user edits
+            if (!lastHistory ||
+                (Date.now() - new Date(lastHistory.timestamp).getTime() > 10 * 1000) ||
+                (lastHistory.updatedBy && lastHistory.updatedBy.toString() !== req.user.id)) {
+                updateOp.$push = {
+                    history: {
+                        content: note.content || '', // Push the PREVIOUS state to history before saving new one
+                        timestamp: Date.now(),
+                        updatedBy: req.user.id
+                    }
+                };
+            }
+        }
+
         note = await Note.findByIdAndUpdate(
             req.params.id,
-            { $set: noteFields },
+            updateOp,
             { new: true }
-        );
+        ).populate('collaborators', 'name email').populate('history.updatedBy', 'name email');
 
         res.json(note);
     } catch (err) {
@@ -124,9 +141,8 @@ exports.updateNote = async (req, res) => {
     }
 };
 
-// @route    DELETE api/notes/:id
-// @desc     Soft delete a note
-// @access   Private
+// @route    DELETE api/notes/:id   Soft delete a note
+
 exports.deleteNote = async (req, res) => {
     try {
         const note = await Note.findById(req.params.id);
@@ -149,16 +165,24 @@ exports.deleteNote = async (req, res) => {
 };
 
 // @route    GET api/notes/search/:query
-// @desc     Search notes by title or content
-// @access   Private
 exports.searchNotes = async (req, res) => {
     try {
         const notes = await Note.find({
             $and: [
                 { $or: [{ user: req.user.id }, { collaborators: req.user.id }] },
-                { $text: { $search: req.params.query } },
+                { deleted: false },
+                {
+                    $or: [
+                        { title: { $regex: req.params.query, $options: 'i' } },
+                        { content: { $regex: req.params.query, $options: 'i' } }
+                    ]
+                }
             ],
-        }).sort({ date: -1 });
+        })
+            .populate('collaborators', 'name email')
+            .populate('user', 'name email')
+            .populate('history.updatedBy', 'name email')
+            .sort({ date: -1 });
         res.json(notes);
     } catch (err) {
         console.error(err.message);
@@ -167,8 +191,6 @@ exports.searchNotes = async (req, res) => {
 };
 
 // @route    POST api/notes/share/:id
-// @desc     Add a collaborator to a note
-// @access   Private
 exports.shareNote = async (req, res) => {
     const { email } = req.body;
 

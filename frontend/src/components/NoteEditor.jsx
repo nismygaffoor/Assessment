@@ -125,18 +125,22 @@ const InlineNoteEditor = ({ note, onSave, currentUser }) => {
     }, [note?._id]);
 
     const handleSave = useCallback(async (isAutoSave = false) => {
-        if (!title.trim()) return;
+        if (!title.trim()) {
+            if (!isAutoSave) setSaveStatus('error-title');
+            return;
+        }
         const content = editor?.getHTML();
         if (!content || content === '<p></p>') return;
         setSaveStatus('saving');
         try {
             if (note?._id) {
-                await api.put(`/notes/${note._id}`, { title, content });
+                const res = await api.put(`/notes/${note._id}`, { title, content });
+                // Pass the updated note back so Dashboard can refresh the history array
+                onSave?.(res.data);
             } else {
-                await api.post('/notes', { title, content });
+                const res = await api.post('/notes', { title, content });
+                onSave?.(res.data);
             }
-            setSaveStatus('saved');
-            onSave?.();
             setTimeout(() => setSaveStatus('idle'), 3000);
         } catch (err) {
             console.error('Save error:', err.response?.data || err.message);
@@ -215,6 +219,7 @@ const InlineNoteEditor = ({ note, onSave, currentUser }) => {
                         {saveStatus === 'saved' && '✓ All changes saved to cloud'}
                         {saveStatus === 'saving' && 'Saving...'}
                         {saveStatus === 'error' && '⚠ Save failed — check your connection'}
+                        {saveStatus === 'error-title' && <span className="text-amber-600 font-semibold">⚠ Title is required to save!</span>}
                         {saveStatus === 'idle' && (isConnected ? 'Connected' : 'Offline')}
                     </span>
                 </div>

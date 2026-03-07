@@ -12,8 +12,8 @@ const NoteCard = ({ note, isActive, onClick }) => {
         <div
             onClick={() => onClick(note)}
             className={`p-4 rounded-xl cursor-pointer transition-all border ${isActive
-                    ? 'bg-blue-50 border-blue-200'
-                    : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200'
+                ? 'bg-blue-50 border-blue-200'
+                : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200'
                 }`}
         >
             <h3 className={`font-semibold text-sm mb-1 line-clamp-1 ${isActive ? 'text-blue-800' : 'text-slate-800'}`}>
@@ -24,11 +24,17 @@ const NoteCard = ({ note, isActive, onClick }) => {
                 <span className="text-slate-400 text-xs">Last edited {timeAgo}</span>
                 {note.collaborators?.length > 0 && (
                     <div className="flex -space-x-1">
-                        {note.collaborators.slice(0, 3).map((_, i) => (
-                            <div key={i} className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-400 to-blue-500 border border-white text-[8px] flex items-center justify-center text-white font-bold">
-                                {String.fromCharCode(65 + i)}
-                            </div>
-                        ))}
+                        {[note.user, ...note.collaborators].filter(Boolean).slice(0, 4).map((userOrCollab, i) => {
+                            const isPopulated = typeof userOrCollab === 'object' && userOrCollab !== null;
+                            const name = isPopulated ? userOrCollab.name : null;
+                            const initial = name ? name[0].toUpperCase() : '?';
+
+                            return (
+                                <div key={isPopulated ? userOrCollab._id : userOrCollab || i} className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-400 to-blue-500 border border-white text-[8px] flex items-center justify-center text-white font-bold" title={name || 'User'}>
+                                    {initial}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -66,8 +72,8 @@ const Sidebar = ({ notes, activeNote, onSelectNote, onNewNote, currentUserId }) 
                             key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === tab
-                                    ? 'bg-blue-600 text-white shadow-sm'
-                                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                                 }`}
                         >
                             {tab === 'Shared with Me' ? 'Shared' : tab}

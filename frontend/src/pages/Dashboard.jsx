@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, LogOut, Plus, Bell, Check, X } from 'lucide-react';
+import { Search, Plus, Bell, LogOut, Check, X, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { connectSocket, getSocket } from '../api/socket';
@@ -7,7 +7,40 @@ import Sidebar from '../components/Sidebar';
 import InlineNoteEditor from '../components/NoteEditor';
 import CollaboratorPanel from '../components/CollaboratorPanel';
 
-const NEW_NOTE = { _id: null, title: '', content: '', collaborators: [], date: new Date().toISOString() };
+const NEW_NOTE = { title: '', content: '' };
+
+const DeleteConfirmationModal = ({ note, onConfirm, onCancel }) => {
+    if (!note) return null;
+    return (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6">
+                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4 mx-auto">
+                        <AlertTriangle className="text-red-600" size={24} />
+                    </div>
+                    <h3 className="text-lg font-bold text-center text-slate-800 mb-2">Delete Note?</h3>
+                    <p className="text-sm text-center text-slate-500 mb-6 font-medium">
+                        Are you sure you want to delete <span className="text-slate-700 font-bold">"{note.title || 'this note'}"</span>? This action cannot be undone.
+                    </p>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={onCancel}
+                            className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm shadow-red-200"
+                        >
+                            Yes, Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // ── Invitations dropdown panel ──
 const InvitationsPanel = ({ invitations, onAccept, onReject, onClose }) => {
@@ -58,39 +91,11 @@ const Dashboard = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [invitations, setInvitations] = useState([]);
     const [showInvitations, setShowInvitations] = useState(false);
+    const [noteToDelete, setNoteToDelete] = useState(null);
     const { user, logout } = useAuth();
 
-    useEffect(() => {
-        fetchNotes();
-        fetchInvitations();
-        setupSocketInvitations();
-    }, []);
-
-    // Close invitations panel on outside click
-    useEffect(() => {
-        if (!showInvitations) return;
-        const handler = (e) => {
-            if (!e.target.closest('#inv-panel') && !e.target.closest('#inv-btn')) {
-                setShowInvitations(false);
-            }
-        };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, [showInvitations]);
-
-    const setupSocketInvitations = () => {
-        const token = localStorage.getItem('token');
-        const socket = connectSocket();
-        socket.on('connect', () => {
-            // Join personal room for invitation notifications
-            socket.emit('join-note', { noteId: `user:${user?.id}`, token });
-        });
-        socket.on('new-invitation', () => {
-            fetchInvitations();
-        });
-        if (socket.connected) {
-            socket.emit('join-note', { noteId: `user:${user?.id || user?._id}`, token });
-        }
+    const handleSearch = (e) => {
+        setSearchQuery(e.target.value);
     };
 
     const fetchNotes = async () => {
@@ -98,11 +103,23 @@ const Dashboard = () => {
             const res = await api.get('/notes?page=1&limit=50');
             const noteList = res.data.notes || res.data;
             setNotes(noteList);
+            setSelectedNote(prev => prev ? (noteList.find(n => n._id === prev._id) || prev) : null);
         } catch (err) {
             console.error('Failed to fetch notes:', err.message);
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleNoteSave = async (savedNote) => {
+        if (savedNote?._id) {
+            // If we are currently viewing this note, update our local selectedNote
+            // so things like the note History array get populated instantly.
+            if (!selectedNote || selectedNote._id === savedNote._id) {
+                setSelectedNote(savedNote);
+            }
+        }
+        await fetchNotes();
     };
 
     const fetchInvitations = async () => {
@@ -114,29 +131,76 @@ const Dashboard = () => {
         }
     };
 
-    const handleAcceptInvitation = async (inviteId) => {
+    const handleAcceptInvitation = async (invId) => {
         try {
-            await api.post(`/notes/invitations/${inviteId}/accept`);
-            setInvitations(prev => prev.filter(i => i._id !== inviteId));
+            await api.post(`/notes/invitations/${invId}/accept`);
+            fetchInvitations();
             fetchNotes();
         } catch (err) {
-            console.error('Accept failed');
+            alert('Failed to accept invitation');
         }
     };
 
-    const handleRejectInvitation = async (inviteId) => {
+    const handleRejectInvitation = async (invId) => {
         try {
-            await api.post(`/notes/invitations/${inviteId}/reject`);
-            setInvitations(prev => prev.filter(i => i._id !== inviteId));
+            await api.post(`/notes/invitations/${invId}/reject`);
+            fetchInvitations();
         } catch (err) {
-            console.error('Reject failed');
+            alert('Failed to reject invitation');
         }
     };
 
-    const handleSearch = async (e) => {
-        const query = e.target.value;
-        setSearchQuery(query);
-        if (query.length > 2) {
+    useEffect(() => {
+        fetchNotes();
+        fetchInvitations();
+
+        // Socket logic...
+        const socket = connectSocket();
+        const token = localStorage.getItem('token');
+
+        const handleSocketConnect = () => {
+            if (!user) return;
+            socket.emit('join-note', { noteId: `user:${user?.id || user?._id}`, token });
+        };
+
+        const handleNewInvitation = () => {
+            fetchInvitations();
+        };
+
+        socket.on('connect', handleSocketConnect);
+        socket.on('new-invitation', handleNewInvitation);
+
+        if (socket.connected) handleSocketConnect();
+
+        // Close panel when clicking outside
+        const handleClickOutside = (e) => {
+            if (showInvitations && !e.target.closest('#inv-panel') && !e.target.closest('#inv-btn')) {
+                setShowInvitations(false);
+            }
+        };
+        document.addEventListener('click', handleClickOutside);
+
+        return () => {
+            socket.off('connect', handleSocketConnect);
+            socket.off('new-invitation', handleNewInvitation);
+            document.removeEventListener('click', handleClickOutside);
+        };
+    }, [user, showInvitations]);
+
+    useEffect(() => {
+        // Debounce search
+        const delaySearch = setTimeout(() => {
+            if (searchQuery.length > 0) {
+                performSearch(searchQuery);
+            } else if (searchQuery.length === 0) {
+                fetchNotes();
+            }
+        }, 300);
+        return () => clearTimeout(delaySearch);
+    }, [searchQuery]);
+
+    const performSearch = async (query) => {
+        if (query.trim().length > 0) {
             try {
                 const res = await api.get(`/notes/search/${query}`);
                 setNotes(res.data);
@@ -148,20 +212,24 @@ const Dashboard = () => {
 
     const handleNewNote = () => setSelectedNote({ ...NEW_NOTE });
 
-    const handleDeleteNote = async (noteId) => {
-        if (!window.confirm('Delete this note?')) return;
+    const initiateDelete = (noteId) => {
+        const note = notes.find(n => n._id === noteId);
+        if (note) setNoteToDelete(note);
+    };
+
+    const confirmDelete = async () => {
+        if (!noteToDelete) return;
         try {
-            await api.delete(`/notes/${noteId}`);
+            await api.delete(`/notes/${noteToDelete._id}`);
             setSelectedNote(null);
+            setNoteToDelete(null);
             fetchNotes();
         } catch (err) {
             console.error('Delete failed:', err.message);
         }
     };
 
-    const displayedNotes = searchQuery.length > 0 && searchQuery.length <= 2
-        ? notes.filter(n => n.title?.toLowerCase().includes(searchQuery.toLowerCase()))
-        : notes;
+    const displayedNotes = notes;
 
     return (
         <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
@@ -184,7 +252,7 @@ const Dashboard = () => {
                             placeholder="Search notes and content..."
                             value={searchQuery}
                             onChange={handleSearch}
-                            className="w-full pl-9 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm outline-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all placeholder:text-slate-400"
+                            className="w-full pl-9 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-900 outline-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all placeholder:text-slate-400"
                         />
                     </div>
                 </div>
@@ -264,7 +332,7 @@ const Dashboard = () => {
                 )}
 
                 {selectedNote !== null ? (
-                    <InlineNoteEditor note={selectedNote} onSave={fetchNotes} currentUser={user} />
+                    <InlineNoteEditor note={selectedNote} onSave={handleNoteSave} currentUser={user} />
                 ) : (
                     <div className="flex-1 bg-white flex flex-col items-center justify-center text-slate-400">
                         <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
@@ -281,10 +349,18 @@ const Dashboard = () => {
                 <CollaboratorPanel
                     note={selectedNote?._id ? selectedNote : null}
                     currentUser={user}
-                    onDelete={handleDeleteNote}
+                    onDelete={initiateDelete}
                     onRefresh={fetchNotes}
                 />
             </div>
+
+            {noteToDelete && (
+                <DeleteConfirmationModal
+                    note={noteToDelete}
+                    onConfirm={confirmDelete}
+                    onCancel={() => setNoteToDelete(null)}
+                />
+            )}
         </div>
     );
 };

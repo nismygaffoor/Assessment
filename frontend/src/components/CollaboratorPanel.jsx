@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronUp, Trash2, Download, History, Check, X, Bell } from 'lucide-react';
 import api from '../api/axios';
+import NoteHistoryModal from './NoteHistoryModal';
 
 const Avatar = ({ name }) => {
     const initial = name ? name[0].toUpperCase() : '?';
@@ -71,9 +72,9 @@ const EmailInviteForm = ({ noteId, onInvited }) => {
                         placeholder="Enter email address"
                         value={email}
                         onChange={handleEmailChange}
-                        className={`w-full px-2.5 py-1.5 pr-8 text-xs border rounded-lg outline-none transition-all ${userExists === true ? 'border-emerald-400 bg-emerald-50 focus:ring-1 focus:ring-emerald-400/30' :
-                                userExists === false ? 'border-red-400 bg-red-50' :
-                                    'border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20'
+                        className={`w-full px-2.5 py-1.5 pr-8 text-xs text-slate-900 border rounded-lg outline-none transition-all ${userExists === true ? 'border-emerald-400 bg-emerald-50 focus:ring-1 focus:ring-emerald-400/30' :
+                            userExists === false ? 'border-red-400 bg-red-50' :
+                                'border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20'
                             }`}
                     />
                     {/* Validation indicator */}
@@ -110,6 +111,7 @@ const EmailInviteForm = ({ noteId, onInvited }) => {
 const CollaboratorPanel = ({ note, currentUser, onDelete, onRefresh }) => {
     const [panelOpen, setPanelOpen] = useState(true);
     const [linkCopied, setLinkCopied] = useState(false);
+    const [historyOpen, setHistoryOpen] = useState(false);
 
     if (!note) {
         return (
@@ -127,6 +129,38 @@ const CollaboratorPanel = ({ note, currentUser, onDelete, onRefresh }) => {
         navigator.clipboard.writeText(window.location.href);
         setLinkCopied(true);
         setTimeout(() => setLinkCopied(false), 2000);
+    };
+
+    const handleExport = () => {
+        if (!note) return;
+        // Strip HTML to get mostly plain text
+        let cleanContent = note.content || '';
+        cleanContent = cleanContent.replace(/<p>/g, '\n').replace(/<\/p>/g, '\n');
+        cleanContent = cleanContent.replace(/<br\s*[\/]?>/gi, '\n');
+        cleanContent = cleanContent.replace(/<[^>]*>?/gm, ''); // Remove remaining HTML tags
+
+        const exportText = `${note.title || 'Untitled Note'}\n====================\nLast Edited: ${new Date(note.date).toLocaleString()}\n\n${cleanContent.trim()}`;
+
+        const blob = new Blob([exportText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(note.title || 'Note').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleRestore = async (oldContent) => {
+        if (!window.confirm("Restore this version? This will overwrite your current note content.")) return;
+        try {
+            await api.put(`/notes/${note._id}`, { content: oldContent });
+            onRefresh?.();
+            setHistoryOpen(false);
+        } catch (err) {
+            alert('Failed to restore note version');
+        }
     };
 
     return (
@@ -147,27 +181,35 @@ const CollaboratorPanel = ({ note, currentUser, onDelete, onRefresh }) => {
                         {/* Owner */}
                         <div className="flex items-center justify-between py-1">
                             <div className="flex items-center gap-2">
-                                <Avatar name={currentUser?.name || 'You'} />
+                                <Avatar name={isOwner ? (currentUser?.name || 'You') : (note.user?.name || 'Owner')} />
                                 <div>
-                                    <p className="text-xs font-semibold text-slate-700">{currentUser?.name || 'You'}</p>
+                                    <p className="text-xs font-semibold text-slate-700">
+                                        {isOwner ? (currentUser?.name || 'You') : (note.user?.name || 'Owner')}
+                                    </p>
                                     <p className="text-[10px] text-slate-400">Owner, Editor</p>
                                 </div>
                             </div>
                             <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Owner</span>
                         </div>
 
-                        {collaborators.map((collab, i) => (
-                            <div key={collab._id || collab || i} className="flex items-center justify-between py-1">
-                                <div className="flex items-center gap-2">
-                                    <Avatar name={collab.name || `C${i + 1}`} />
-                                    <div>
-                                        <p className="text-xs font-semibold text-slate-700">{collab.name || 'Collaborator'}</p>
-                                        <p className="text-[10px] text-slate-400">Editor</p>
+                        {collaborators.map((collab, i) => {
+                            const isPopulated = typeof collab === 'object' && collab !== null;
+                            const collabId = isPopulated ? collab._id : collab;
+                            const collabName = isPopulated ? collab.name : undefined;
+
+                            return (
+                                <div key={collabId || i} className="flex items-center justify-between py-1">
+                                    <div className="flex items-center gap-2">
+                                        <Avatar name={collabName || `C${i + 1}`} />
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-700">{collabName || 'Collaborator'}</p>
+                                            <p className="text-[10px] text-slate-400">Editor</p>
+                                        </div>
                                     </div>
+                                    <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Editor</span>
                                 </div>
-                                <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Editor</span>
-                            </div>
-                        ))}
+                            );
+                        })}
                         {collaborators.length === 0 && (
                             <p className="text-[11px] text-slate-400">No collaborators yet</p>
                         )}
@@ -184,10 +226,10 @@ const CollaboratorPanel = ({ note, currentUser, onDelete, onRefresh }) => {
             <div className="px-4 py-3 border-b border-slate-100">
                 <p className="text-xs font-semibold text-slate-600 mb-2">Note Options</p>
                 <div className="space-y-1.5">
-                    <button className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 rounded-lg transition-all border border-slate-200">
+                    <button onClick={handleExport} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 rounded-lg transition-all border border-slate-200">
                         <Download size={13} /> Export Note
                     </button>
-                    <button className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 rounded-lg transition-all border border-slate-200">
+                    <button onClick={() => setHistoryOpen(true)} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 rounded-lg transition-all border border-slate-200">
                         <History size={13} /> Note History
                     </button>
                     {isOwner && (
@@ -202,7 +244,7 @@ const CollaboratorPanel = ({ note, currentUser, onDelete, onRefresh }) => {
             </div>
 
             {/* Sharing Link */}
-            <div className="px-4 py-3">
+            {/* <div className="px-4 py-3">
                 <p className="text-xs font-semibold text-slate-600 mb-2">Sharing Link</p>
                 <div className="flex gap-1.5">
                     <div className="flex-1 px-2.5 py-1.5 text-[10px] text-slate-400 border border-slate-200 rounded-lg truncate bg-slate-50">
@@ -216,7 +258,14 @@ const CollaboratorPanel = ({ note, currentUser, onDelete, onRefresh }) => {
                     </button>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1.5">Anyone with the link can view ↓</p>
-            </div>
+            </div> */}
+
+            <NoteHistoryModal
+                isOpen={historyOpen}
+                onClose={() => setHistoryOpen(false)}
+                note={note}
+                onRestore={handleRestore}
+            />
         </div>
     );
 };
